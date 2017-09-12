@@ -1,45 +1,48 @@
 const EventEmitter = require('events').EventEmitter
 , inherits     = require('util').inherits
-, bl           = require('bl')
+, bl           = require('bl');
 
 function create (options) {
   if (typeof options != 'object')
-    throw new TypeError('must provide an options object')
+    throw new TypeError('must provide an options object');
 
   if (typeof options.path != 'string')
-    throw new TypeError('must provide a \'path\' option')
+    throw new TypeError('must provide a \'path\' option');
 
   // make it an EventEmitter, sort of
-  handler.__proto__ = EventEmitter.prototype
-  EventEmitter.call(handler)
+  handler.__proto__ = EventEmitter.prototype;
+  EventEmitter.call(handler);
 
-  return handler
+  return handler;
 
   function handler (req, res, callback) {
     if (req.url.split('?').shift() !== options.path)
-      return callback()
+      return callback();
 
     function hasError (msg) {
-      res.writeHead(400, { 'content-type': 'application/json' })
-      res.end(JSON.stringify({ error: msg }))
+      res.writeHead(400, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ error: msg }));
 
-      var err = new Error(msg)
+      var err = new Error(msg);
 
-      handler.emit('error', err, req)
+      handler.emit('error', err, req);
       callback(err)
     }
 
     var event = req.headers['x-gitlab-event'];
-
+    var token = req.headers['x-gitlab-token'];
+    if(!token){
+      return hasError('No token found on request!')
+    }
     if (!event)
-     return hasError('No X-Gitlab-Event found on request')
+     return hasError('No X-Gitlab-Event found on request');
 
    req.pipe(bl(function (err, data) {
     if (err) {
       return hasError(err.message)
     }
 
-    var obj
+    var obj;
 
     try {
       obj = JSON.parse(data.toString())
@@ -57,8 +60,8 @@ function create (options) {
 
      var repo = obj.repository.name;
 
-     res.writeHead(200, { 'content-type': 'application/json' })
-     res.end('{"ok":true}')
+     res.writeHead(200, { 'content-type': 'application/json' });
+     res.end('{"ok":true}');
 
      var emitData = {
       event   : event
@@ -66,13 +69,14 @@ function create (options) {
       , protocol: req.protocol
       , host    : req.headers['host']
       , url     : req.url
-    }
+      , token   : token
+     };
 
-    handler.emit(event, emitData)
+    handler.emit(event, emitData);
     handler.emit('*', emitData)
   }))
  }
 }
 
 
-module.exports = create
+module.exports = create;
